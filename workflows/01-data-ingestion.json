@@ -1,0 +1,234 @@
+{
+  "name": "WF01 - Enterprise Data Ingestion",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e44c278e-6701-4475-8120-e461fbf43b71",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 260]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "5f13426e-4416-4354-9271-9252abcb2df0",
+      "name": "Schedule Trigger (06:00 UTC)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 440]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/ingest",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "c138b16e-4508-410a-8bf7-4c7b805342a5",
+      "name": "Webhook Ingest Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 620],
+      "webhookId": "v1-ingest-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst timestamp = now.getTime();\nconst correlationId = 'corr_' + Math.random().toString(36).substring(2, 10);\n\n// Default to standard 10k fixture if triggered manually or via cron\nlet source = 'STANDARD_FIXTURE_10K';\nlet batchId = 'batch_std10k_' + timestamp;\nlet filePath = 'data/fixtures/standard_10k.csv';\n\n// If webhook provided custom payload, use it\nif ($json.body && $json.body.batch_id) {\n  source = $json.body.source || 'WEBHOOK_STREAM';\n  batchId = $json.body.batch_id;\n  filePath = $json.body.file_path || filePath;\n}\n\nreturn [{\n  json: {\n    source: source,\n    batch_id: batchId,\n    file_path: filePath,\n    schema_version: '1.0',\n    correlation_id: correlationId\n  }\n}];"
+      },
+      "id": "90d16450-4df2-4ce0-a29e-270830cb8554",
+      "name": "Prepare Ingestion Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/v1/ingestion/file",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source\": \"{{ $json.source }}\",\n  \"batch_id\": \"{{ $json.batch_id }}\",\n  \"file_path\": \"{{ $json.file_path }}\",\n  \"schema_version\": \"{{ $json.schema_version }}\"\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "713ba6b8-6ca6-4d08-8e65-27a3f5a892b9",
+      "name": "Call Ingestion API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "5fae740b-4682-446f-a89c-a1ba2fa54f59",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "SUCCESS",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3beaa794-263a-44fc-b8cb-46549c6ba79e",
+      "name": "Check Ingestion Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1040, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/quality/validate/{{ $json.data.run_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "a9a3848b-32ec-4155-9ee9-31ff6f7a7556",
+      "name": "Trigger Quality Gates (WF02)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    outcome: 'IDEMPOTENT_REPLAY_OR_ERROR',\n    correlation_id: $json.correlation_id,\n    data: $json.data,\n    errors: $json.errors\n  }\n}];"
+      },
+      "id": "e2ba3975-2178-43d5-a337-b9c9f0bc17ee",
+      "name": "Log Replay or Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 560]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Ingestion Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger (06:00 UTC)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Ingestion Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Ingest Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Ingestion Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Ingestion Payload": {
+      "main": [
+        [
+          {
+            "node": "Call Ingestion API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Ingestion API": {
+      "main": [
+        [
+          {
+            "node": "Check Ingestion Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Ingestion Success": {
+      "main": [
+        [
+          {
+            "node": "Trigger Quality Gates (WF02)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Replay or Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

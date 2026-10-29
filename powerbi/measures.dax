@@ -1,0 +1,113 @@
+// ===============================================================================
+// Enterprise Intelligence Automation Platform (EIAP) - Core DAX Measures
+// Author: Datta Sable (https://dattasable.com/)
+// Description: Ground-truth DAX calculations matching Postgres/FastAPI SQL ETL definitions.
+// Grain: Calculated over 'fact_orders' connected to 'dim_date', 'dim_product', 'dim_geography'.
+// ===============================================================================
+
+// -------------------------------------------------------------------------------
+// 1. FINANCIAL CORE MEASURES
+// -------------------------------------------------------------------------------
+
+Total Revenue = 
+SUM(fact_orders[revenue])
+// Formatted as: Currency ($#,##0.00)
+
+Total Cost = 
+SUM(fact_orders[cost])
+// Formatted as: Currency ($#,##0.00)
+
+Gross Profit = 
+[Total Revenue] - [Total Cost]
+// Formatted as: Currency ($#,##0.00)
+
+Profit Margin % = 
+DIVIDE([Gross Profit], [Total Revenue], 0)
+// Formatted as: Percentage (0.00%)
+
+Total Discounts = 
+SUM(fact_orders[discount_amount])
+// Formatted as: Currency ($#,##0.00)
+
+
+// -------------------------------------------------------------------------------
+// 2. OPERATIONAL & VOLUME MEASURES
+// -------------------------------------------------------------------------------
+
+Total Orders = 
+DISTINCTCOUNT(fact_orders[external_order_id])
+// Formatted as: Whole Number (#,##0)
+
+Total Order Items = 
+COUNTROWS(fact_orders)
+// Formatted as: Whole Number (#,##0)
+
+Total Quantity Sold = 
+SUM(fact_orders[quantity])
+// Formatted as: Whole Number (#,##0)
+
+Average Order Value = 
+DIVIDE([Total Revenue], [Total Orders], 0)
+// Formatted as: Currency ($#,##0.00)
+
+Average Item Price = 
+DIVIDE([Total Revenue], [Total Quantity Sold], 0)
+// Formatted as: Currency ($#,##0.00)
+
+
+// -------------------------------------------------------------------------------
+// 3. FULFILLMENT & QUALITY STATUS
+// -------------------------------------------------------------------------------
+
+Cancelled Orders = 
+CALCULATE(
+    [Total Orders],
+    fact_orders[order_status] = "CANCELLED"
+)
+// Formatted as: Whole Number (#,##0)
+
+Cancellation Rate % = 
+DIVIDE([Cancelled Orders], [Total Orders], 0)
+// Formatted as: Percentage (0.00%)
+
+Delivered Orders = 
+CALCULATE(
+    [Total Orders],
+    fact_orders[order_status] = "DELIVERED"
+)
+// Formatted as: Whole Number (#,##0)
+
+Delivered Share % = 
+DIVIDE([Delivered Orders], [Total Orders], 0)
+// Formatted as: Percentage (0.00%)
+
+
+// -------------------------------------------------------------------------------
+// 4. TIME INTELLIGENCE MEASURES (Standard Gregorian Calendar)
+// -------------------------------------------------------------------------------
+
+Revenue YTD = 
+TOTALYTD([Total Revenue], dim_date[full_date])
+// Formatted as: Currency ($#,##0.00)
+
+Revenue Prior Month = 
+CALCULATE(
+    [Total Revenue],
+    PARALLELPERIOD(dim_date[full_date], -1, MONTH)
+)
+// Formatted as: Currency ($#,##0.00)
+
+MoM Revenue Growth % = 
+VAR _prior = [Revenue Prior Month]
+VAR _diff = [Total Revenue] - _prior
+RETURN
+    DIVIDE(_diff, _prior, BLANK())
+// Formatted as: Percentage (+0.00%;-0.00%;0.00%)
+
+Trailing 7D Revenue = 
+CALCULATE(
+    [Total Revenue],
+    DATESINPERIOD(dim_date[full_date], LASTDATE(dim_date[full_date]), -7, DAY)
+)
+// Formatted as: Currency ($#,##0.00)
+

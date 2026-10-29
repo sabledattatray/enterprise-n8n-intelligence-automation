@@ -1,0 +1,126 @@
+{
+  "name": "WF03 - Enterprise SQL ETL Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/etl-commit",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "278b16e4-4508-410a-8bf7-4c7b805342a1",
+      "name": "ETL Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 360],
+      "webhookId": "v1-etl-trigger"
+    },
+    {
+      "parameters": {},
+      "id": "e44c278e-6701-4475-8120-e461fbf43bcc",
+      "name": "Manual ETL Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "const runId = ($json.body && $json.body.run_id) || $json.run_id || 'latest';\nconst corrId = ($json.body && $json.body.correlation_id) || $json.correlation_id || ('corr_' + Math.random().toString(36).substring(2, 10));\n\nreturn [{\n  json: {\n    run_id: runId,\n    correlation_id: corrId\n  }\n}];"
+      },
+      "id": "5f13426e-4416-4354-9271-9252abcb2d11",
+      "name": "Extract ETL Parameters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/etl/commit/{{ $json.run_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "90d16450-4df2-4ce0-a29e-270830cb8512",
+      "name": "Commit Transactional ETL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $json.data || {};\nreturn [{\n  json: {\n    pipeline_status: 'ETL_COMPLETED',\n    run_id: res.run_id,\n    facts_upserted: res.facts_upserted,\n    dimensions_loaded: res.dimensions_loaded,\n    duration_ms: res.duration_ms,\n    correlation_id: $json.correlation_id,\n    completed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "ac5b2591-912c-473d-bd83-e18e9547cb99",
+      "name": "Format Pipeline Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 440]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "ETL Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract ETL Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual ETL Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract ETL Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract ETL Parameters": {
+      "main": [
+        [
+          {
+            "node": "Commit Transactional ETL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commit Transactional ETL": {
+      "main": [
+        [
+          {
+            "node": "Format Pipeline Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

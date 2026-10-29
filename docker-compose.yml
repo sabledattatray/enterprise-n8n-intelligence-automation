@@ -1,0 +1,122 @@
+services:
+  # 1. PostgreSQL 16 Warehouse & n8n Persistence Store
+  postgres:
+    image: postgres:16-alpine
+    container_name: eiap_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eiap_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eiap_local_secure_pass_2026_x9}
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eiap_admin} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - eiap_internal
+
+  # 2. FastAPI Data Integration & Quality Microservice
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: eiap-api:1.0.0
+    container_name: eiap_api
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_KEY: ${API_KEY}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5678","http://127.0.0.1:5678"]}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eiap_admin}:${POSTGRES_PASSWORD:-eiap_local_secure_pass_2026_x9}@postgres:5432/business_analytics
+      LOCAL_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eiap_admin}:${POSTGRES_PASSWORD:-eiap_local_secure_pass_2026_x9}@127.0.0.1:5433/business_analytics
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      RUNNING_IN_DOCKER: "true"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./sql:/app/sql
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - eiap_internal
+
+  # 3. Mailpit Local SMTP Catcher (Zero Cost / Safe Outbound Auditing)
+  mailpit:
+    image: axllent/mailpit:v1.23
+    container_name: eiap_mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025" # Web UI
+      - "127.0.0.1:1025:1025" # SMTP Port
+    networks:
+      - eiap_internal
+
+  # 4. n8n Self-Hosted Orchestrator
+  n8n:
+    image: n8nio/n8n:1.82.2
+    container_name: eiap_n8n
+    restart: unless-stopped
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_internal
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-eiap_admin}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-eiap_local_secure_pass_2026_x9}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-eiap_n8n_dev_key_32chars_long_val!}
+      - N8N_METRICS=${N8N_METRICS:-true}
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+      - N8N_SECURE_COOKIE=false
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - API_KEY=${API_KEY}
+    ports:
+      - "127.0.0.1:5678:5678"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/workflows:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:5678/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - eiap_internal
+
+volumes:
+  postgres_data:
+    name: eiap_postgres_data
+  n8n_data:
+    name: eiap_n8n_data
+
+networks:
+  eiap_internal:
+    name: eiap_internal_network
+    driver: bridge
+

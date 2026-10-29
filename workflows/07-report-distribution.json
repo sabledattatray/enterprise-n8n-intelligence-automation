@@ -1,0 +1,158 @@
+{
+  "name": "WF07 - Automated Executive Report Distribution",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/report-dispatch",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "f1f72a77-1188-4c3e-86d1-88f25b2901d1",
+      "name": "Report Dispatch Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 320],
+      "webhookId": "v1-report-dispatch-trigger"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "f2f72a77-2288-4c3e-86d1-88f25b2901d2",
+      "name": "Daily Scheduled Dispatch (08:00 UTC)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 480]
+    },
+    {
+      "parameters": {},
+      "id": "f3f72a77-3388-4c3e-86d1-88f25b2901d3",
+      "name": "Manual Dispatch Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 640]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst snapshotId = body.snapshot_id || null;\nconst recipient = body.recipient_email || 'executive-leadership@internal.local';\nconst forceResend = Boolean(body.force_resend);\nconst corrId = body.correlation_id || ('corr_rep_' + Math.random().toString(36).substring(2, 10));\n\nreturn [{\n  json: {\n    snapshot_id: snapshotId,\n    recipient_email: recipient,\n    force_resend: forceResend,\n    correlation_id: corrId\n  }\n}];"
+      },
+      "id": "f4f72a77-4488-4c3e-86d1-88f25b2901d4",
+      "name": "Extract Dispatch Parameters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/reports/dispatch",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"snapshot_id\": {{ $json.snapshot_id ? '\"' + $json.snapshot_id + '\"' : 'null' }},\n  \"recipient_email\": \"{{ $json.recipient_email }}\",\n  \"force_resend\": {{ $json.force_resend }}\n}",
+        "options": {}
+      },
+      "id": "f5f72a77-5588-4c3e-86d1-88f25b2901d5",
+      "name": "Dispatch Report API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json.data || {};\nconst corrId = $json.correlation_id || 'unknown';\n\nreturn [{\n  json: {\n    workflow: 'WF07 - Automated Executive Report Distribution',\n    status: 'SUCCESS',\n    dispatch_id: data.dispatch_id,\n    report_id: data.report_id,\n    recipient: data.recipient,\n    subject: data.subject,\n    delivery_status: data.status,\n    idempotent_replay: data.idempotent_replay,\n    attempts: data.attempts,\n    sent_at: data.sent_at,\n    smtp_target: data.smtp_target,\n    correlation_id: corrId,\n    message: data.idempotent_replay\n      ? `Report '${data.report_id}' was already dispatched to '${data.recipient}' (idempotent replay).`\n      : `Report '${data.report_id}' successfully delivered to '${data.recipient}' via ${data.smtp_target}.`\n  }\n}];"
+      },
+      "id": "f6f72a77-6688-4c3e-86d1-88f25b2901d6",
+      "name": "Format Delivery Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 480]
+    }
+  ],
+  "connections": {
+    "Report Dispatch Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Dispatch Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Scheduled Dispatch (08:00 UTC)": {
+      "main": [
+        [
+          {
+            "node": "Extract Dispatch Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Dispatch Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Dispatch Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Dispatch Parameters": {
+      "main": [
+        [
+          {
+            "node": "Dispatch Report API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dispatch Report API": {
+      "main": [
+        [
+          {
+            "node": "Format Delivery Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

@@ -1,0 +1,149 @@
+{
+  "name": "WF08 - Centralized Failure Recovery & Incident Management",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "g1f72a88-1188-4c3e-86d1-88f25b2901e1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 320]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/failure-incident",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "g2f72a88-2288-4c3e-86d1-88f25b2901e2",
+      "name": "Incident Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 480],
+      "webhookId": "v1-failure-incident-trigger"
+    },
+    {
+      "parameters": {},
+      "id": "g3f72a88-3388-4c3e-86d1-88f25b2901e3",
+      "name": "Manual Incident Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 640]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\n\n// Error Trigger in n8n delivers execution context under execution\nconst execution = $json.execution || {};\nconst workflow = $json.workflow || {};\n\nconst wfName = body.workflow_name || workflow.name || 'Unknown Workflow';\nconst execId = body.execution_id || String(execution.id || 'N/A');\nconst errCode = body.error_code || (execution.error && execution.error.name) || 'PIPELINE_ERROR';\nconst errMsg = body.error_message || (execution.error && execution.error.message) || 'Workflow execution terminated with error';\nconst failureCat = body.failure_category || null;\nconst corrId = body.correlation_id || ('corr_inc_' + Math.random().toString(36).substring(2, 10));\n\nreturn [{\n  json: {\n    workflow_name: wfName,\n    execution_id: execId,\n    error_code: errCode,\n    error_message: errMsg,\n    failure_category: failureCat,\n    correlation_id: corrId,\n    error_details: {\n      source_node: (execution.error && execution.error.node) || 'Unknown Node',\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "g4f72a88-4488-4c3e-86d1-88f25b2901e4",
+      "name": "Extract Failure Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/operations/incidents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_name\": \"{{ $json.workflow_name }}\",\n  \"execution_id\": {{ $json.execution_id ? '\"' + $json.execution_id + '\"' : 'null' }},\n  \"correlation_id\": \"{{ $json.correlation_id }}\",\n  \"error_code\": \"{{ $json.error_code }}\",\n  \"error_message\": \"{{ $json.error_message }}\",\n  \"failure_category\": {{ $json.failure_category ? '\"' + $json.failure_category + '\"' : 'null' }},\n  \"error_details\": {}\n}",
+        "options": {}
+      },
+      "id": "g5f72a88-5588-4c3e-86d1-88f25b2901e5",
+      "name": "Record Incident API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inc = $json.data || {};\nconst corrId = $json.correlation_id || 'unknown';\n\nreturn [{\n  json: {\n    workflow: 'WF08 - Centralized Failure Recovery & Incident Management',\n    status: 'RECORDED',\n    incident_id: inc.incident_id,\n    workflow_name: inc.workflow_name,\n    execution_id: inc.execution_id,\n    failure_category: inc.failure_category,\n    severity: inc.severity,\n    incident_status: inc.status,\n    eligible_for_retry: inc.eligible_for_retry,\n    suggested_backoff_seconds: inc.suggested_backoff_seconds,\n    retry_count: inc.retry_count,\n    max_retries: inc.max_retries,\n    correlation_id: corrId,\n    message: `Operational incident '${inc.incident_id}' registered for '${inc.workflow_name}'. Status: ${inc.status} (${inc.failure_category}/${inc.severity}).`\n  }\n}];"
+      },
+      "id": "g6f72a88-6688-4c3e-86d1-88f25b2901e6",
+      "name": "Format Incident Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 480]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Failure Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Incident Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Failure Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Incident Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Failure Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Failure Context": {
+      "main": [
+        [
+          {
+            "node": "Record Incident API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Incident API": {
+      "main": [
+        [
+          {
+            "node": "Format Incident Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

@@ -1,0 +1,200 @@
+{
+  "name": "WF02 - Enterprise Data Quality Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/quality-check",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "18f5033c-3962-42e1-897b-bb66c4ef78c9",
+      "name": "Quality Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 360],
+      "webhookId": "v1-quality-trigger"
+    },
+    {
+      "parameters": {},
+      "id": "e2ba3975-2178-43d5-a337-b9c9f0bc17aa",
+      "name": "Manual Run Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "const runId = ($json.body && $json.body.run_id) || $json.run_id || 'latest';\nconst corrId = ($json.body && $json.body.correlation_id) || $json.correlation_id || ('corr_' + Math.random().toString(36).substring(2, 10));\n\nreturn [{\n  json: {\n    run_id: runId,\n    correlation_id: corrId\n  }\n}];"
+      },
+      "id": "8b9f1d04-5e36-474a-a9e9-f64125b3901b",
+      "name": "Extract Run Parameters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/quality/validate/{{ $json.run_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "5849cb11-9a4f-4d95-8854-bc7f032ea891",
+      "name": "Validate Batch via API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "848bbce2-901b-4f51-b016-834f828ac912",
+              "leftValue": "={{ $json.data.gate_status }}",
+              "rightValue": "PASSED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ac5b2591-912c-473d-bd83-e18e9547cb02",
+      "name": "Evaluate Quality Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [960, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/etl/commit/{{ $json.data.run_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "713ba6b8-6ca6-4d08-8e65-27a3f5a892cc",
+      "name": "Trigger ETL Commit (WF03)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1220, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    status: 'QUALITY_GATE_BLOCKED',\n    run_id: $json.data.run_id,\n    quality_score: $json.data.quality_score,\n    rejected_rows: $json.data.rejected_rows,\n    sample_rejections: $json.data.sample_rejections\n  }\n}];"
+      },
+      "id": "c138b16e-4508-410a-8bf7-4c7b805342ff",
+      "name": "Quarantine Alert Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1220, 540]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Quality Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Run Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Run Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Run Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Run Parameters": {
+      "main": [
+        [
+          {
+            "node": "Validate Batch via API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Batch via API": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Quality Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Quality Gate": {
+      "main": [
+        [
+          {
+            "node": "Trigger ETL Commit (WF03)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quarantine Alert Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

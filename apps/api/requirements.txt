@@ -1,0 +1,26 @@
+# Core Web API
+fastapi>=0.115.6,<=0.162.0
+starlette>=1.10.0
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# Database & Migrations
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+
+# HTTP Client & Security
+httpx==0.28.1
+python-multipart>=0.0.32
+
+# Data Utilities
+python-dateutil==2.9.0.post0
+python-dotenv>=1.0.0
+
+# Testing & Security Auditing
+pytest>=9.0.0
+pytest-asyncio>=1.4.1
+pip-audit>=2.10.0
+
+

@@ -1,0 +1,193 @@
+{
+  "name": "WF05 - Enterprise KPI Monitoring & Anomaly Detection",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/kpi-monitor",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "d1f72a55-1188-4c3e-86d1-88f25b2901b1",
+      "name": "KPI Monitor Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 320],
+      "webhookId": "v1-kpi-monitor-trigger"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "d2f72a55-2288-4c3e-86d1-88f25b2901b2",
+      "name": "Daily Scheduled Monitor (07:00 UTC)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 480]
+    },
+    {
+      "parameters": {},
+      "id": "d3f72a55-3388-4c3e-86d1-88f25b2901b3",
+      "name": "Manual Monitor Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 640]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst currency = body.currency_code || 'USD';\nconst runId = body.source_run_id || null;\nconst periodStart = body.period_start || null;\nconst periodEnd = body.period_end || null;\nconst corrId = body.correlation_id || ('corr_kpi_' + Math.random().toString(36).substring(2, 10));\n\nreturn [{\n  json: {\n    currency_code: currency,\n    source_run_id: runId,\n    period_start: periodStart,\n    period_end: periodEnd,\n    correlation_id: corrId\n  }\n}];"
+      },
+      "id": "d4f72a55-4488-4c3e-86d1-88f25b2901b4",
+      "name": "Extract Monitor Parameters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/kpis/compute",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"currency_code\": \"{{ $json.currency_code }}\",\n  \"source_run_id\": {{ $json.source_run_id ? '\"' + $json.source_run_id + '\"' : 'null' }},\n  \"period_start\": {{ $json.period_start ? '\"' + $json.period_start + '\"' : 'null' }},\n  \"period_end\": {{ $json.period_end ? '\"' + $json.period_end + '\"' : 'null' }}\n}",
+        "options": {}
+      },
+      "id": "d5f72a55-5588-4c3e-86d1-88f25b2901b5",
+      "name": "Compute KPIs API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/anomalies/evaluate/{{ $json.data.snapshot_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d6f72a55-6688-4c3e-86d1-88f25b2901b6",
+      "name": "Evaluate Anomalies API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const evalData = $json.data || {};\nconst kpiNode = $('Compute KPIs API').first();\nconst kpiData = (kpiNode && kpiNode.json && kpiNode.json.data) || {};\n\nconst anomaliesCount = evalData.anomalies_detected || 0;\nconst hasAnomalies = (anomaliesCount > 0);\n\nreturn [{\n  json: {\n    workflow: 'WF05 - Enterprise KPI Monitoring & Anomaly Detection',\n    status: 'SUCCESS',\n    snapshot_id: evalData.snapshot_id,\n    kpi_summary: {\n      period_start: kpiData.period_start,\n      period_end: kpiData.period_end,\n      currency: kpiData.currency_code,\n      revenue: kpiData.revenue,\n      cost: kpiData.cost,\n      profit: kpiData.profit,\n      margin_pct: kpiData.margin_pct,\n      orders: kpiData.orders,\n      average_order_value: kpiData.average_order_value,\n      cancellation_rate_pct: kpiData.cancellation_rate_pct,\n      quality_score: kpiData.quality_score\n    },\n    anomaly_monitoring: {\n      has_anomalies: hasAnomalies,\n      anomalies_detected: anomaliesCount,\n      headline: evalData.summary_headline,\n      anomalies: evalData.anomalies || [],\n      executive_alert_text: evalData.executive_alert_text\n    }\n  }\n}];"
+      },
+      "id": "d7f72a55-7788-4c3e-86d1-88f25b2901b7",
+      "name": "Format Executive Alert & Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 480]
+    }
+  ],
+  "connections": {
+    "KPI Monitor Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Monitor Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Scheduled Monitor (07:00 UTC)": {
+      "main": [
+        [
+          {
+            "node": "Extract Monitor Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Monitor Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Monitor Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Monitor Parameters": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute KPIs API": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Anomalies API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Anomalies API": {
+      "main": [
+        [
+          {
+            "node": "Format Executive Alert & Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

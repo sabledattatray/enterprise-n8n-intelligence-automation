@@ -1,0 +1,65 @@
+{
+  "name": "EnterpriseIntelligenceTheme",
+  "dataColors": [
+    "#0F172A",
+    "#1E3A8A",
+    "#0D9488",
+    "#2563EB",
+    "#059669",
+    "#D97706",
+    "#DC2626",
+    "#64748B"
+  ],
+  "background": "#FFFFFF",
+  "foreground": "#0F172A",
+  "tableAccent": "#1E3A8A",
+  "visualStyles": {
+    "*": {
+      "*": {
+        "*": {
+          "fontFamily": "Segoe UI"
+        },
+        "title": [
+          {
+            "show": true,
+            "fontColor": { "solid": { "color": "#0F172A" } },
+            "fontSize": 12,
+            "fontFamily": "Segoe UI Semibold"
+          }
+        ],
+        "background": [
+          {
+            "color": { "solid": { "color": "#FFFFFF" } },
+            "transparency": 0
+          }
+        ],
+        "border": [
+          {
+            "show": true,
+            "color": { "solid": { "color": "#E2E8F0" } },
+            "radius": 4
+          }
+        ]
+      }
+    },
+    "card": {
+      "*": {
+        "labels": [
+          {
+            "color": { "solid": { "color": "#0F172A" } },
+            "fontSize": 24,
+            "fontFamily": "Segoe UI Bold"
+          }
+        ],
+        "categoryLabels": [
+          {
+            "color": { "solid": { "color": "#64748B" } },
+            "fontSize": 10,
+            "fontFamily": "Segoe UI"
+          }
+        ]
+      }
+    }
+  }
+}
+

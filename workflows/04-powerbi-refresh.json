@@ -1,0 +1,208 @@
+{
+  "name": "WF04 - Power BI Refresh Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/powerbi-refresh",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "c1f72a44-1188-4c3e-86d1-88f25b2901a1",
+      "name": "Refresh Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 360],
+      "webhookId": "v1-powerbi-refresh-trigger"
+    },
+    {
+      "parameters": {},
+      "id": "c2f72a44-2288-4c3e-86d1-88f25b2901a2",
+      "name": "Manual Refresh Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst datasetId = body.dataset_id || 'ds-default-enterprise-sales';\nconst workspaceId = body.workspace_id || 'ws-prod-analytics';\nconst runId = body.run_id || null;\nconst simulateFailure = Boolean(body.simulate_failure);\nconst simulateTimeout = Boolean(body.simulate_timeout);\nconst corrId = body.correlation_id || ('corr_pbi_' + Math.random().toString(36).substring(2, 10));\n\nreturn [{\n  json: {\n    dataset_id: datasetId,\n    workspace_id: workspaceId,\n    run_id: runId,\n    simulate_failure: simulateFailure,\n    simulate_timeout: simulateTimeout,\n    correlation_id: corrId\n  }\n}];"
+      },
+      "id": "c3f72a44-3388-4c3e-86d1-88f25b2901a3",
+      "name": "Extract Refresh Parameters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/integrations/powerbi/refresh",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"dataset_id\": \"{{ $json.dataset_id }}\",\n  \"workspace_id\": \"{{ $json.workspace_id }}\",\n  \"run_id\": {{ $json.run_id ? '\"' + $json.run_id + '\"' : 'null' }},\n  \"simulate_failure\": {{ $json.simulate_failure }},\n  \"simulate_timeout\": {{ $json.simulate_timeout }}\n}",
+        "options": {}
+      },
+      "id": "c4f72a44-4488-4c3e-86d1-88f25b2901a4",
+      "name": "Submit Refresh Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const refreshData = $json.data || {};\nconst corrId = $json.correlation_id || 'corr_unknown';\n\nreturn [{\n  json: {\n    refresh_id: refreshData.refresh_id,\n    dataset_id: refreshData.dataset_id,\n    workspace_id: refreshData.workspace_id,\n    status: refreshData.status,\n    idempotent_replay: refreshData.idempotent_replay,\n    adapter_mode: refreshData.adapter_mode,\n    correlation_id: corrId\n  }\n}];"
+      },
+      "id": "c5f72a44-5588-4c3e-86d1-88f25b2901a5",
+      "name": "Evaluate Initial Submission",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 440]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "c6f72a44-6688-4c3e-86d1-88f25b2901a6",
+      "name": "Wait for Async Completion",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1200, 440]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://api:8000/v1/integrations/powerbi/refresh/{{ $json.refresh_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c7f72a44-7788-4c3e-86d1-88f25b2901a7",
+      "name": "Poll Refresh Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const pollData = $json.data || {};\nconst status = pollData.status || 'UNKNOWN';\nconst isSuccess = (status === 'COMPLETED');\n\nreturn [{\n  json: {\n    workflow: 'WF04 - Power BI Refresh Orchestrator',\n    success: isSuccess,\n    status: status,\n    refresh_id: pollData.refresh_id,\n    dataset_id: pollData.dataset_id,\n    workspace_id: pollData.workspace_id,\n    submitted_at: pollData.submitted_at,\n    completed_at: pollData.completed_at,\n    attempts: pollData.attempts,\n    idempotent_replay: pollData.idempotent_replay,\n    adapter_mode: pollData.adapter_mode,\n    error_message: pollData.error_message || null,\n    message: isSuccess \n      ? `Power BI dataset '${pollData.dataset_id}' successfully refreshed in ${pollData.attempts} poll(s).`\n      : `Power BI dataset refresh ended with status '${status}'.`\n  }\n}];"
+      },
+      "id": "c8f72a44-8888-4c3e-86d1-88f25b2901a8",
+      "name": "Format Orchestration Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 440]
+    }
+  ],
+  "connections": {
+    "Refresh Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Refresh Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Refresh Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Refresh Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Refresh Parameters": {
+      "main": [
+        [
+          {
+            "node": "Submit Refresh Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit Refresh Request": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Initial Submission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Initial Submission": {
+      "main": [
+        [
+          {
+            "node": "Wait for Async Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Async Completion": {
+      "main": [
+        [
+          {
+            "node": "Poll Refresh Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Refresh Status": {
+      "main": [
+        [
+          {
+            "node": "Format Orchestration Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

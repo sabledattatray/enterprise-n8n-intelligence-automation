@@ -1,0 +1,10 @@
+{
+  "seed": 1337,
+  "total_records": 10000,
+  "valid_expected": 8564,
+  "duplicates_injected": 499,
+  "negative_quantity_injected": 284,
+  "invalid_currency_injected": 288,
+  "missing_fields_injected": 365,
+  "anomaly_spikes_injected": 2
+}

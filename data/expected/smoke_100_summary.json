@@ -1,0 +1,10 @@
+{
+  "seed": 42,
+  "total_records": 100,
+  "valid_expected": 85,
+  "duplicates_injected": 4,
+  "negative_quantity_injected": 3,
+  "invalid_currency_injected": 2,
+  "missing_fields_injected": 6,
+  "anomaly_spikes_injected": 1
+}

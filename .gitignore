@@ -1,0 +1,72 @@
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.cert
+credentials.json
+n8n_export_credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Quality
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local Containers & Storage Mounts
+postgres_data/
+n8n_data/
+mailpit_data/
+tmp/
+*.sqlite
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Large fixtures (keep generators and smoke test fixtures only)
+data/fixtures/stress_*.csv
+data/fixtures/stress_*.json
+
+# Backups & Dumps
+backups/
+*.dump
+*.tar.gz
+
+

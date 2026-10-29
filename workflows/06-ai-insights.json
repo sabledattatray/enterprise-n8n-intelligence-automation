@@ -1,0 +1,130 @@
+{
+  "name": "WF06 - Grounded AI Executive Intelligence",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/ai-insights",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "e1f72a66-1188-4c3e-86d1-88f25b2901c1",
+      "name": "AI Insights Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 360],
+      "webhookId": "v1-ai-insights-trigger"
+    },
+    {
+      "parameters": {},
+      "id": "e2f72a66-2288-4c3e-86d1-88f25b2901c2",
+      "name": "Manual AI Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst snapshotId = body.snapshot_id || null;\nconst provider = body.provider || 'mock';\nconst forceFallback = Boolean(body.force_fallback);\nconst corrId = body.correlation_id || ('corr_ai_' + Math.random().toString(36).substring(2, 10));\n\nreturn [{\n  json: {\n    snapshot_id: snapshotId,\n    provider: provider,\n    force_fallback: forceFallback,\n    correlation_id: corrId\n  }\n}];"
+      },
+      "id": "e3f72a66-3388-4c3e-86d1-88f25b2901c3",
+      "name": "Extract AI Parameters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/v1/ai/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "X-Correlation-ID",
+              "value": "={{ $json.correlation_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"snapshot_id\": {{ $json.snapshot_id ? '\"' + $json.snapshot_id + '\"' : 'null' }},\n  \"provider\": \"{{ $json.provider }}\",\n  \"force_fallback\": {{ $json.force_fallback }}\n}",
+        "options": {}
+      },
+      "id": "e4f72a66-4488-4c3e-86d1-88f25b2901c4",
+      "name": "Generate AI Briefing API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json.data || {};\nconst sections = data.sections || {};\nconst corrId = $json.correlation_id || 'unknown';\n\nreturn [{\n  json: {\n    workflow: 'WF06 - Grounded AI Executive Intelligence',\n    status: 'SUCCESS',\n    summary_id: data.summary_id,\n    snapshot_id: data.snapshot_id,\n    model_provider: data.model_provider,\n    model_name: data.model_name,\n    validation_status: data.validation_status,\n    duration_ms: data.duration_ms,\n    token_count: data.token_count,\n    grounding_checks_passed: (data.grounding_checks || []).every(c => c.is_grounded),\n    briefing: {\n      business_overview: sections.business_overview,\n      revenue_profitability: sections.revenue_profitability,\n      order_performance: sections.order_performance,\n      product_geography_insights: sections.product_geography_insights,\n      detected_anomalies: sections.detected_anomalies,\n      operational_observations: sections.operational_observations,\n      investigation_priorities: sections.investigation_priorities || []\n    },\n    correlation_id: corrId\n  }\n}];"
+      },
+      "id": "e5f72a66-5588-4c3e-86d1-88f25b2901c5",
+      "name": "Format Executive Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 440]
+    }
+  ],
+  "connections": {
+    "AI Insights Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract AI Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual AI Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract AI Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract AI Parameters": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Briefing API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Briefing API": {
+      "main": [
+        [
+          {
+            "node": "Format Executive Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

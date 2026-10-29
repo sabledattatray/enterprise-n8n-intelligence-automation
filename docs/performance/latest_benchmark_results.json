@@ -1,0 +1,132 @@
+{
+  "benchmark_timestamp_utc": "2026-10-29T08:07:47.502189+00:00",
+  "environment": "Docker Local Dev (127.0.0.1)",
+  "endpoint_latencies": [
+    {
+      "endpoint": "GET /health/live",
+      "total_requests": 30,
+      "success_rate_pct": 100.0,
+      "min_ms": 1.52,
+      "p50_ms": 2.69,
+      "p95_ms": 6.15,
+      "p99_ms": 9.33,
+      "max_ms": 9.33,
+      "mean_ms": 2.93
+    },
+    {
+      "endpoint": "GET /health/ready",
+      "total_requests": 30,
+      "success_rate_pct": 100.0,
+      "min_ms": 2.81,
+      "p50_ms": 4.12,
+      "p95_ms": 5.91,
+      "p99_ms": 7.8,
+      "max_ms": 7.8,
+      "mean_ms": 4.27
+    },
+    {
+      "endpoint": "GET /v1/kpis/latest",
+      "total_requests": 30,
+      "success_rate_pct": 100.0,
+      "min_ms": 29.36,
+      "p50_ms": 47.6,
+      "p95_ms": 59.71,
+      "p99_ms": 60.41,
+      "max_ms": 60.41,
+      "mean_ms": 44.55
+    },
+    {
+      "endpoint": "GET /v1/operations/health",
+      "total_requests": 30,
+      "success_rate_pct": 100.0,
+      "min_ms": 7.55,
+      "p50_ms": 9.55,
+      "p95_ms": 12.24,
+      "p99_ms": 12.36,
+      "max_ms": 12.36,
+      "mean_ms": 9.48
+    },
+    {
+      "endpoint": "GET /v1/reports/history",
+      "total_requests": 30,
+      "success_rate_pct": 100.0,
+      "min_ms": 5.36,
+      "p50_ms": 6.58,
+      "p95_ms": 7.28,
+      "p99_ms": 8.18,
+      "max_ms": 8.18,
+      "mean_ms": 6.52
+    },
+    {
+      "endpoint": "GET /v1/anomalies/open",
+      "total_requests": 30,
+      "success_rate_pct": 100.0,
+      "min_ms": 4.96,
+      "p50_ms": 5.51,
+      "p95_ms": 6.17,
+      "p99_ms": 7.3,
+      "max_ms": 7.3,
+      "mean_ms": 5.58
+    },
+    {
+      "endpoint": "POST /v1/ai/generate",
+      "total_requests": 30,
+      "success_rate_pct": 100.0,
+      "min_ms": 11.87,
+      "p50_ms": 14.57,
+      "p95_ms": 17.14,
+      "p99_ms": 18.84,
+      "max_ms": 18.84,
+      "mean_ms": 14.66
+    }
+  ],
+  "concurrency_benchmarks": [
+    {
+      "concurrency": 1,
+      "requests": 50,
+      "elapsed_seconds": 12.236,
+      "throughput_rps": 4.09,
+      "p50_ms": 64.76,
+      "p95_ms": 82.01,
+      "success_rate_pct": 100.0
+    },
+    {
+      "concurrency": 5,
+      "requests": 50,
+      "elapsed_seconds": 6.408,
+      "throughput_rps": 7.8,
+      "p50_ms": 212.15,
+      "p95_ms": 247.0,
+      "success_rate_pct": 100.0
+    },
+    {
+      "concurrency": 10,
+      "requests": 50,
+      "elapsed_seconds": 4.979,
+      "throughput_rps": 10.04,
+      "p50_ms": 337.43,
+      "p95_ms": 521.04,
+      "success_rate_pct": 100.0
+    }
+  ],
+  "database_benchmarks": [
+    {
+      "query_name": "Full Fact Table Aggregation",
+      "p50_ms": 3.23,
+      "p95_ms": 6.5,
+      "mean_ms": 3.45
+    },
+    {
+      "query_name": "Multi-Dimension Join (30-day)",
+      "p50_ms": 2.59,
+      "p95_ms": 7.19,
+      "mean_ms": 2.81
+    },
+    {
+      "query_name": "Geography Breakdown with Margin",
+      "p50_ms": 6.94,
+      "p95_ms": 8.58,
+      "mean_ms": 7.09
+    }
+  ]
+}

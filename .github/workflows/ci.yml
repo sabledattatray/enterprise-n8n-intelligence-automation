@@ -58,6 +58,14 @@ jobs:
         run: |
           alembic upgrade head
 
+      - name: Seed Warehouse Database Fixtures
+        env:
+          DATABASE_URL: postgresql+psycopg://eiap_admin:eiap_ci_secure_password_test_2026@localhost:5432/business_analytics
+          LOCAL_DATABASE_URL: postgresql+psycopg://eiap_admin:eiap_ci_secure_password_test_2026@localhost:5432/business_analytics
+          API_KEY: dev_ci_test_key_32_characters_long_val
+        run: |
+          python scripts/seed_database.py
+
       - name: Verify Workflow Sanitization (Zero Secrets Check)
         run: |
           python scripts/verify_workflow_sanitization.py
